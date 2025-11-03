@@ -14,7 +14,7 @@ import os # ❗️ NOVO: Para ler as Variáveis de Ambiente
 app = FastAPI()
 
 # --- CONFIGURAÇÕES LIDAS DO AMBIENTE (Render vai preencher isto) ---
-DATABASE_URL = os.environ.get("postgresql://bot_admin_db_user:97fBcDLeJfywc6Sl1uWu5PIQwnJriLk4@dpg-d44fn9muk2gs73clmee0-a.oregon-postgres.render.com/bot_admin_db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN")
 PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID")
 MEU_TOKEN_SECRETO = os.environ.get("MEU_TOKEN_SECRETO")
@@ -383,3 +383,4 @@ if __name__ == "__main__":
     # ex: export ACCESS_TOKEN="EAA..."
     print(">>> Rodando em modo de desenvolvimento local (use 'gunicorn' para produção)...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
