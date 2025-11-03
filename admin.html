@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Bot WhatsApp</title>
+    <!-- Carrega o Tailwind CSS para estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Animação de 'salvando' */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, .1);
+            border-left-color: #3b82f6; /* azul */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div class="container mx-auto max-w-3xl p-6 my-10 bg-white rounded-lg shadow-xl">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-4">Painel de Configuração do Bot</h1>
+
+        <!-- Seletor do Bot (no futuro pode ser dinâmico) -->
+        <div class="mb-6">
+            <label for="bot_id_selector" class="block text-sm font-medium text-gray-700 mb-1">Configurar Bot:</label>
+            <input type="text" id="bot_id_selector" value="pizzaria_vitor" class="w-full p-2 border border-gray-300 rounded-md bg-gray-50" readonly>
+        </div>
+
+        <!-- Formulário Principal -->
+        <form id="admin-form" class="space-y-6">
+            
+            <!-- Mensagem de Boas-Vindas -->
+            <div>
+                <label for="mensagem_boas_vindas" class="block text-lg font-semibold text-gray-700 mb-2">Mensagem Principal (Menu)</label>
+                <p class="text-sm text-gray-500 mb-2">Esta é a primeira mensagem que o usuário vê e para onde ele volta ao digitar 'menu'. As opções serão adicionadas abaixo.</p>
+                <textarea id="mensagem_boas_vindas" rows="5" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+
+            <!-- Opções do Menu (Dinâmico) -->
+            <div>
+                <h2 class="text-lg font-semibold text-gray-700 mb-2">Opções do Menu</h2>
+                <div id="opcoes-container" class="space-y-4">
+                    <!-- Opções carregadas pelo JavaScript irão aqui -->
+                </div>
+                <button type="button" onclick="adicionarOpcao()" class="mt-4 py-2 px-4 bg-green-600 text-white font-medium rounded-md hover:bg-green-700">
+                    + Adicionar Opção
+                </button>
+            </div>
+
+            <!-- Botão de Salvar -->
+            <div class="border-t pt-6 flex justify-end items-center space-x-4">
+                <div id="status-message" class="text-sm font-medium"></div>
+                <button type="button" onclick="salvarConfiguracoes()" id="save-button" class="py-3 px-6 bg-blue-600 text-white font-bold text-lg rounded-md hover:bg-blue-700">
+                    Salvar Configurações
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Template de Opção (para o JS copiar) -->
+    <template id="template-opcao">
+        <div class="opcao-item grid grid-cols-1 md:grid-cols-12 gap-3 p-4 border rounded-lg bg-gray-50">
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700">Nº Opção</label>
+                <input type="text" name="numero_opcao" placeholder="Ex: 1" class="w-full p-2 border border-gray-300 rounded-md">
+            </div>
+            <div class="md:col-span-4">
+                <label class="block text-sm font-medium text-gray-700">Título no Menu</label>
+                <input type="text" name="titulo_opcao" placeholder="Ex: Ver Cardápio" class="w-full p-2 border border-gray-300 rounded-md">
+            </div>
+            <div class="md:col-span-6">
+                <label class="block text-sm font-medium text-gray-700">Texto da Resposta</label>
+                <textarea name="texto_resposta" rows="3" placeholder="A resposta do bot..." class="w-full p-2 border border-gray-300 rounded-md"></textarea>
+            </div>
+            <div class="md:col-span-12 flex justify-end">
+                <button type="button" onclick="removerOpcao(this)" class="py-1 px-3 bg-red-500 text-white text-sm font-medium rounded-md hover:bg-red-600">Remover</button>
+            </div>
+        </div>
+    </template>
+
+
+    <script>
+        const botIdInput = document.getElementById('bot_id_selector');
+        const boasVindasTextarea = document.getElementById('mensagem_boas_vindas');
+        const opcoesContainer = document.getElementById('opcoes-container');
+        const templateOpcao = document.getElementById('template-opcao');
+        const statusMessage = document.getElementById('status-message');
+        const saveButton = document.getElementById('save-button');
+
+        // --- 1. CARREGAR DADOS QUANDO A PÁGINA ABRE ---
+        window.onload = function() {
+            carregarConfiguracoes();
+        };
+
+        async function carregarConfiguracoes() {
+            const botId = botIdInput.value;
+            if (!botId) return;
+
+            mostrarStatus("Carregando...", "text-blue-600");
+
+            try {
+                const response = await fetch(`http://localhost:8000/api/bot/${botId}`);
+                if (!response.ok) {
+                    throw new Error(`Erro ao carregar: ${response.statusText}`);
+                }
+                const config = await response.json();
+
+                // Preenche os campos
+                boasVindasTextarea.value = config.mensagem_boas_vindas;
+
+                // Limpa opções antigas e renderiza as novas
+                opcoesContainer.innerHTML = '';
+                config.opcoes_menu.forEach(opcao => {
+                    adicionarOpcao(opcao); // Usa a função de adicionar para preencher
+                });
+
+                mostrarStatus("Dados carregados.", "text-green-600");
+
+            } catch (error) {
+                console.error(error);
+                mostrarStatus("Falha ao carregar dados.", "text-red-600");
+            }
+        }
+
+        // --- 2. SALVAR DADOS ---
+        async function salvarConfiguracoes() {
+            const botId = botIdInput.value;
+            mostrarStatus('<div class="spinner"></div> Salvando...', "text-blue-600", false);
+            saveButton.disabled = true;
+
+            // Constrói o objeto de configuração a partir do formulário
+            const configData = {
+                mensagem_boas_vindas: boasVindasTextarea.value,
+                opcoes_menu: []
+            };
+
+            const todosItensOpcao = document.querySelectorAll('.opcao-item');
+            todosItensOpcao.forEach(item => {
+                const numero = item.querySelector('input[name="numero_opcao"]').value;
+                const titulo = item.querySelector('input[name="titulo_opcao"]').value;
+                const resposta = item.querySelector('textarea[name="texto_resposta"]').value;
+
+                if (numero && titulo && resposta) { // Só salva se preenchido
+                    configData.opcoes_menu.push({
+                        numero_opcao: numero,
+                        titulo_opcao: titulo,
+                        texto_resposta: resposta
+                    });
+                }
+            });
+
+            // Envia para a API (o endpoint POST que criamos no Python)
+            try {
+                const response = await fetch(`http://localhost:8000/api/bot/${botId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(configData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro ao salvar: ${response.statusText}`);
+                }
+                
+                await response.json(); // Espera a resposta
+                mostrarStatus("✅ Salvo com sucesso!", "text-green-600");
+
+            } catch (error) {
+                console.error(error);
+                mostrarStatus("❌ Falha ao salvar!", "text-red-600");
+            } finally {
+                saveButton.disabled = false;
+            }
+        }
+
+        // --- 3. FUNÇÕES DO EDITOR DE MENU (Adicionar/Remover) ---
+        
+        // Adiciona um novo bloco de opção (seja vazio ou com dados)
+        function adicionarOpcao(opcao = null) {
+            const novoBloco = templateOpcao.content.cloneNode(true).firstElementChild;
+            
+            if (opcao) {
+                novoBloco.querySelector('input[name="numero_opcao"]').value = opcao.numero_opcao;
+                novoBloco.querySelector('input[name="titulo_opcao"]').value = opcao.titulo_opcao;
+                novoBloco.querySelector('textarea[name="texto_resposta"]').value = opcao.texto_resposta;
+            }
+            
+            opcoesContainer.appendChild(novoBloco);
+        }
+
+        // Remove o bloco de opção clicado
+        function removerOpcao(botao) {
+            const itemParaRemover = botao.closest('.opcao-item');
+            itemParaRemover.remove();
+        }
+
+        // Mostra mensagens de status
+        function mostrarStatus(mensagem, classeCor, autoLimpar = true) {
+            statusMessage.innerHTML = mensagem;
+            statusMessage.className = `text-sm font-medium ${classeCor}`;
+            
+            if (autoLimpar) {
+                setTimeout(() => {
+                    statusMessage.innerHTML = '';
+                }, 3000);
+            }
+        }
+    </script>
+
+</body>
+</html>
+
